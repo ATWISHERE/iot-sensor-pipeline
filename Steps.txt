@@ -659,4 +659,175 @@ if __name__ == "__main__":
 
 
 
-15.
+15.go to https://home.openweathermap.org/ to create acc and get free api key for temp rain and humidity
+
+16.created 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+IMPORTANT
+
+If you expand your system and buy new sensors (like an Analog Soil Moisture sensor or an NPK nutrient sensor), you only need to modify three specific places across your hardware and software to pass the new data through the pipeline.
+
+Here is exactly what you change, using a Soil Moisture sensor as an example:
+
+1. In the Hardware Script (Raspberry Pi/Arduino)
+You just need to add the new sensor reading to the payload that gets sent over WiFi.
+
+Change this:
+
+Python
+
+
+payload = {"temperature": temperature, "humidity": humidity}
+To this:
+
+Python
+
+
+# Add your new sensor's reading to the JSON package
+payload = {"temperature": temperature, "humidity": humidity, "moisture": physical_soil_moisture}
+2. In app.py (The Database Setup)
+You have to tell your SQLite database to create a new "column" to store this new data permanently.
+
+Change the init_db() table creation:
+
+Python
+
+
+c.execute('''CREATE TABLE IF NOT EXISTS readings 
+             (id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp TEXT, temperature REAL, humidity REAL)''')
+To this:
+
+Python
+
+
+# Added "moisture REAL" to the end of the table
+c.execute('''CREATE TABLE IF NOT EXISTS readings 
+             (id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp TEXT, temperature REAL, humidity REAL, moisture REAL)''')
+3. In app.py (The Receiving Door)
+When the data arrives, you need to update the SQL INSERT command so it saves the new variable into the column you just created.
+
+Change the /sensor-data route:
+
+Python
+
+
+c.execute("INSERT INTO readings (timestamp, temperature, humidity) VALUES (?, ?, ?)",
+          (timestamp, data.get("temperature"), data.get("humidity")))
+To this:
+
+Python
+
+
+# Added the 4th question mark, and data.get("moisture")
+c.execute("INSERT INTO readings (timestamp, temperature, humidity, moisture) VALUES (?, ?, ?, ?)",
+          (timestamp, data.get("temperature"), data.get("humidity"), data.get("moisture")))
+Once that is done, your new sensor data is officially in the system. You would just update your get_live_hardware_data() function to SELECT the new moisture reading and pass it into your ML model, exactly like we did with temperature!
+
+If you added a physical Soil Moisture sensor, here are the two lines you would change in templates\index.html:
+
+1. Update the "Live Sensor Data" Banner
+You want the new hardware reading to show up at the very top of the screen.
+
+Change this:
+
+HTML
+
+
+<p style="margin: 5px 0;"><b>Temperature:</b> {{ hw_temp }} &deg;C | <b>Humidity:</b> {{ hw_hum }} %</p>
+To this:
+
+HTML
+
+
+<!-- Added Moisture to the live display -->
+<p style="margin: 5px 0;"><b>Temperature:</b> {{ hw_temp }} &deg;C | <b>Humidity:</b> {{ hw_hum }} % | <b>Soil Moisture:</b> {{ hw_moist }} %</p>
+2. Update the Fertilizer Form Auto-Fill
+Right now, the Soil Moisture box in the Fertilizer card has a hard-coded fake default value (value="40.0"). You would change it to grab the live hardware variable instead, just like Temperature does.
+
+Change this:
+
+HTML
+
+
+<input type="number" step="0.1" name="moisture" min="20.0" max="80.0" value="40.0" required>
+To this:
+
+HTML
+
+
+<!-- Replaced "40.0" with the live hardware variable {{ hw_moist }} -->
+<input type="number" step="0.1" name="moisture" min="20.0" max="80.0" value="{{ hw_moist }}" required>
+(Note: To make {{ hw_moist }} work in your HTML, you would just add it to the render_template return line at the bottom of your app.py routes, exactly like hw_temp=hw_temp!)
+
+You are thinking exactly like a systems architect now. You recognized that data has to flow all the way from the dirt (hardware) -> to the database (backend) -> to the screen (frontend).
+
+
+

@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Smart Farm AI</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f4f9; padding: 20px; display: flex; flex-wrap: wrap; gap: 20px; justify-content: center;}
+        .card { background: white; padding: 25px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); width: 100%; max-width: 400px; box-sizing: border-box;}
+        input, select, button { width: 100%; padding: 10px; margin-top: 8px; margin-bottom: 15px; box-sizing: border-box; border-radius: 5px; border: 1px solid #ccc; }
+        button { background-color: #28a745; color: white; border: none; cursor: pointer; font-weight: bold; font-size: 16px; }
+        button:hover { background-color: #218838; }
+        .live-data { background-color: #e9ecef; padding: 10px; border-radius: 5px; margin-bottom: 20px; text-align: center; width: 100%; max-width: 820px;}
+        .result { color: #28a745; text-align: center; border-top: 2px solid #28a745; padding-top: 15px; }
+        .badge { background-color: #007bff; color: white; padding: 5px 10px; border-radius: 15px; font-size: 14px; display: inline-block; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+    
+    <div class="live-data">
+        <h3 style="margin: 5px 0;">?? Local Sensor Data (Hardware)</h3>
+        <p style="margin: 5px 0;"><b>Temperature:</b> {{ live_temp }} &deg;C | <b>Humidity:</b> {{ live_hum }} %</p>
+    </div>
+
+    <!-- CROP RECOMMENDATION CARD -->
+    <div class="card">
+        <h2 style="text-align: center; color: #333;">?? Crop Recommender</h2>
+        {% if used_city and crop_prediction %}
+            <div style="text-align:center;"><span class="badge">??? Used Live API Weather for {{ used_city }}</span></div>
+        {% endif %}
+        <form action="/predict_crop" method="POST">
+            <label>City (Optional - overrides local temp/hum/rain):</label> 
+            <input type="text" name="city" placeholder="e.g. Jabalpur">
+
+            <label>Nitrogen (N):</label> <input type="number" name="N" required>
+            <label>Phosphorus (P):</label> <input type="number" name="P" required>
+            <label>Potassium (K):</label> <input type="number" name="K" required>
+            <label>pH Level:</label> <input type="number" step="0.1" name="ph" required>
+            <label>Rainfall (mm) [Manual Fallback]:</label> <input type="number" name="rainfall" required>
+            <button type="submit">Predict Best Crop</button>
+        </form>
+        {% if crop_prediction %}
+            <h3 class="result">Recommended: {{ crop_prediction | upper }}</h3>
+        {% endif %}
+    </div>
+
+    <!-- FERTILIZER RECOMMENDATION CARD -->
+    <div class="card">
+        <h2 style="text-align: center; color: #333;">?? Fertilizer Recommender</h2>
+        {% if used_city and fert_prediction %}
+            <div style="text-align:center;"><span class="badge">?? Used Live API Weather for {{ used_city }}</span></div>
+        {% endif %}
+        <form action="/predict_fert" method="POST">
+            <label>City (Optional - overrides local temp/hum):</label> 
+            <input type="text" name="city" placeholder="e.g. Jabalpur">
+
+            <label>Moisture:</label> <input type="number" name="moisture" required>
+            
+            <label>Soil Type:</label>
+            <select name="soil_type">
+                <option value="Sandy">Sandy</option>
+                <option value="Loamy">Loamy</option>
+                <option value="Black">Black</option>
+                <option value="Red">Red</option>
+                <option value="Clayey">Clayey</option>
+            </select>
+
+            <label>Crop Type:</label>
+            <select name="crop_type">
+                <option value="Maize">Maize</option>
+                <option value="Sugarcane">Sugarcane</option>
+                <option value="Cotton">Cotton</option>
+                <option value="Tobacco">Tobacco</option>
+                <option value="Paddy">Paddy</option>
+                <option value="Barley">Barley</option>
+                <option value="Wheat">Wheat</option>
+                <option value="Millets">Millets</option>
+                <option value="Oil seeds">Oil seeds</option>
+                <option value="Pulses">Pulses</option>
+                <option value="Ground Nuts">Ground Nuts</option>
+            </select>
+
+            <label>Nitrogen (N):</label> <input type="number" name="N" required>
+            <label>Potassium (K):</label> <input type="number" name="K" required>
+            <label>Phosphorus (P):</label> <input type="number" name="P" required>
+            <button type="submit" style="background-color: #007bff;">Predict Best Fertilizer</button>
+        </form>
+        {% if fert_prediction %}
+            <h3 class="result" style="color: #007bff; border-color: #007bff;">
+                Recommended: {{ fert_prediction | upper }}
+            </h3>
+        {% endif %}
+    </div>
+
+</body>
+</html>
