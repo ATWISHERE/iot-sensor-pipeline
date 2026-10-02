@@ -6,13 +6,13 @@ import pandas as pd
 
 app = Flask(__name__)
 
-# Load Models and Translators
+# Load Models
 crop_model = joblib.load("crop_model.pkl")
 fert_model = joblib.load("fert_model.pkl")
 soil_enc = joblib.load("soil_encoder.pkl")
 crop_type_enc = joblib.load("crop_type_encoder.pkl")
 
-# Helper function for live data
+# Helper function to grab the live database numbers
 def get_live_data():
     conn = sqlite3.connect("sensors.db")
     c = conn.cursor()
@@ -21,13 +21,15 @@ def get_live_data():
     conn.close()
     if latest:
         return latest[0], latest[1]
-    return 25.0, 60.0
+    return 25.0, 60.0 # Fallback if no hardware data exists yet
 
+# Visibe Web Homepage
 @app.route("/", methods=["GET"])
 def dashboard():
     live_temp, live_hum = get_live_data()
     return render_template("index.html", live_temp=live_temp, live_hum=live_hum)
 
+# Hidden Hardware Door
 @app.route("/sensor-data", methods=["POST"])
 def receive_data():
     data = request.get_json(silent=True)
@@ -40,10 +42,12 @@ def receive_data():
     conn.close()
     return jsonify({"status": "success"}), 200
 
+# Web Form Processing
 @app.route("/predict_crop", methods=["POST"])
 def predict_crop():
     live_temp, live_hum = get_live_data()
     
+    # Read the numbers the user typed into the web form
     input_df = pd.DataFrame([{
         'N': float(request.form['N']),
         'P': float(request.form['P']),
@@ -55,30 +59,9 @@ def predict_crop():
     }])
     
     prediction = crop_model.predict(input_df)[0]
-    return render_template("index.html", live_temp=live_temp, live_hum=live_hum, crop_prediction=prediction)
-
-@app.route("/predict_fert", methods=["POST"])
-def predict_fert():
-    live_temp, live_hum = get_live_data()
     
-    # Translate strings from dropdown menu into numbers for the AI
-    soil_encoded = soil_enc.transform([request.form['soil_type']])[0]
-    crop_encoded = crop_type_enc.transform([request.form['crop_type']])[0]
-    
-    # Column names must match the original dataset perfectly
-    input_df = pd.DataFrame([{
-        'Temparature': live_temp,
-        'Humidity ': live_hum,
-        'Moisture': float(request.form['moisture']),
-        'Soil Type': soil_encoded,
-        'Crop Type': crop_encoded,
-        'Nitrogen': float(request.form['N']),
-        'Potassium': float(request.form['K']),
-        'Phosphorous': float(request.form['P'])
-    }])
-    
-    prediction = fert_model.predict(input_df)[0]
-    return render_template("index.html", live_temp=live_temp, live_hum=live_hum, fert_prediction=prediction)
+    # Reload the page with the answer displayed
+    return render_template("index.html", live_temp=live_temp, live_hum=live_hum, prediction=prediction)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)

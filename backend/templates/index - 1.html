@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Smart Farm AI</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f4f9; padding: 20px; }
+        .card { background: white; padding: 25px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); max-width: 450px; margin: auto; }
+        input, button { width: 100%; padding: 10px; margin-top: 8px; margin-bottom: 15px; box-sizing: border-box; border-radius: 5px; border: 1px solid #ccc; }
+        button { background-color: #28a745; color: white; border: none; cursor: pointer; font-weight: bold; font-size: 16px; }
+        button:hover { background-color: #218838; }
+        .live-data { background-color: #e9ecef; padding: 10px; border-radius: 5px; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2 style="text-align: center; color: #333;">?? Crop Recommender</h2>
+        
+        <!-- Live hardware data gets injected here automatically -->
+        <div class="live-data">
+            <p style="margin: 5px 0;">?? <b>Live Temp:</b> {{ live_temp }} &deg;C</p>
+            <p style="margin: 5px 0;">?? <b>Live Hum:</b> {{ live_hum }} %</p>
+        </div>
+
+        <form action="/predict_crop" method="POST">
+            <label>Nitrogen (N):</label> <input type="number" name="N" required>
+            <label>Phosphorus (P):</label> <input type="number" name="P" required>
+            <label>Potassium (K):</label> <input type="number" name="K" required>
+            <label>pH Level:</label> <input type="number" step="0.1" name="ph" required>
+            <label>Rainfall (mm):</label> <input type="number" name="rainfall" required>
+            <button type="submit">Predict Best Crop</button>
+        </form>
+
+        <!-- The AI Prediction will appear here after clicking predict -->
+        {% if prediction %}
+            <h3 style="color: #28a745; text-align: center; border-top: 2px solid #28a745; padding-top: 15px;">
+                Recommended: {{ prediction | upper }}
+            </h3>
+        {% endif %}
+    </div>
+</body>
+</html>
