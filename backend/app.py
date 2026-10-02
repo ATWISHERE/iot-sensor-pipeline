@@ -1,78 +1,67 @@
-import datetime
+from flask import Flask, request, jsonify, render_template
 import sqlite3
-from flask import Flask, jsonify, request
+import datetime
+import joblib
+import pandas as pd
 
 app = Flask(__name__)
 
+# Load Models
+crop_model = joblib.load("crop_model.pkl")
+fert_model = joblib.load("fert_model.pkl")
+soil_enc = joblib.load("soil_encoder.pkl")
+crop_type_enc = joblib.load("crop_type_encoder.pkl")
 
-# 1. Create a database to store the readings permanently
-def init_db():
-  conn = sqlite3.connect("sensors.db")
-  c = conn.cursor()
-  c.execute("""
-        CREATE TABLE IF NOT EXISTS readings (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            timestamp TEXT,
-            temperature REAL,
-            humidity REAL
-        )
-    """)
-  conn.commit()
-  conn.close()
+# Helper function to grab the live database numbers
+def get_live_data():
+    conn = sqlite3.connect("sensors.db")
+    c = conn.cursor()
+    c.execute("SELECT temperature, humidity FROM readings ORDER BY timestamp DESC LIMIT 1")
+    latest = c.fetchone()
+    conn.close()
+    if latest:
+        return latest[0], latest[1]
+    return 25.0, 60.0 # Fallback if no hardware data exists yet
 
-
-init_db()
-
-
-# 2. The endpoint where hardware will send data
-@app.route("/sensor-data", methods=["POST"])
-def receive_data():
-  # Ensure JSON data is parsed safely
-  data = request.get_json(silent=True)
-  if not data:
-    return (
-        jsonify({
-            "error": "Invalid or missing JSON payload. Ensure Content-Type is application/json."
-        }),
-        400,
-    )
-
-  print(f"Data received: {data}")
-
-  temperature = data.get("temperature")
-  humidity = data.get("humidity")
-
-  conn = sqlite3.connect("sensors.db")
-  c = conn.cursor()
-  timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-  c.execute(
-      "INSERT INTO readings (timestamp, temperature, humidity) VALUES (?, ?,"
-      " ?)",
-      (timestamp, temperature, humidity),
-  )
-  conn.commit()
-  conn.close()
-
-  return jsonify({"status": "success"}), 200
-
-
-# 3. A visible dashboard route for your web browser
+# Visibe Web Homepage
 @app.route("/", methods=["GET"])
 def dashboard():
-  conn = sqlite3.connect("sensors.db")
-  c = conn.cursor()
-  c.execute("SELECT id, timestamp, temperature, humidity FROM readings ORDER BY timestamp DESC LIMIT 5")
-  rows = c.fetchall()
-  conn.close()
+    live_temp, live_hum = get_live_data()
+    return render_template("index.html", live_temp=live_temp, live_hum=live_hum)
 
-  html = "<h1>Live Sensor Dashboard</h1><ul>"
-  for row in rows:
-    # row = (id, timestamp, temperature, humidity)
-    html += f"<li>{row[1]} — Temp: {row[2]}°C, Humidity: {row[3]}%</li>"
-  html += "</ul>"
-  return html
+# Hidden Hardware Door
+@app.route("/sensor-data", methods=["POST"])
+def receive_data():
+    data = request.get_json(silent=True)
+    conn = sqlite3.connect("sensors.db")
+    c = conn.cursor()
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    c.execute("INSERT INTO readings (timestamp, temperature, humidity) VALUES (?, ?, ?)",
+              (timestamp, data.get("temperature"), data.get("humidity")))
+    conn.commit()
+    conn.close()
+    return jsonify({"status": "success"}), 200
 
+# Web Form Processing
+@app.route("/predict_crop", methods=["POST"])
+def predict_crop():
+    live_temp, live_hum = get_live_data()
+    
+    # Read the numbers the user typed into the web form
+    input_df = pd.DataFrame([{
+        'N': float(request.form['N']),
+        'P': float(request.form['P']),
+        'K': float(request.form['K']),
+        'temperature': live_temp,
+        'humidity': live_hum,
+        'ph': float(request.form['ph']),
+        'rainfall': float(request.form['rainfall'])
+    }])
+    
+    prediction = crop_model.predict(input_df)[0]
+    
+    # Reload the page with the answer displayed
+    return render_template("index.html", live_temp=live_temp, live_hum=live_hum, prediction=prediction)
 
 if __name__ == "__main__":
-  app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=5000, debug=True)
