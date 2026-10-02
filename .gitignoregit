@@ -1,0 +1,1 @@
+*.db  __pycache__/  add .git commit -m "Added Flask backend, database, and simulator script"git push

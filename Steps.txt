@@ -6,9 +6,152 @@
 		echo # IoT Sensor Data Pipeline > README.md
 		echo > .gitignore
 		git init
-2.github repo make 
+2.github repo make :
+		git init 
+		echo # Iot Sensor Data Pipeline > README.md
+		type null > .gitignore
 		git add .
 		git commit -m "Initial project structure"
 		git branch -M main
 		git remote add origin https://github.com/ATWISHERE/iot-sensor-pipeline.git
 		git push -u origin main
+3.Set up the backend files :
+		cd backend
+		type nul > app.py
+		type nul > requirements.txt
+4.edit for test app.py :
+		notepad app.py :code
+from flask import Flask, request, jsonify
+
+app = Flask(__name__)
+
+@app.route('/sensor-data', methods=['POST'])
+def receive_data():
+    # Receive JSON data from the hardware
+    data = request.json
+    
+    # Print it to the console (later we will save this to a database)
+    print(f"Live Sensor Data: {data}")
+    
+    return jsonify({"status": "success", "message": "Data received!"}), 200
+
+if __name__ == '__main__':
+    # host='0.0.0.0' allows devices on your local network to send data to this PC
+    app.run(host='0.0.0.0', port=5000)
+
+
+
+5.edit for final app.py:
+
+import datetime
+import sqlite3
+from flask import Flask, jsonify, request
+
+app = Flask(__name__)
+
+
+# 1. Create a database to store the readings permanently
+def init_db():
+  conn = sqlite3.connect("sensors.db")
+  c = conn.cursor()
+  c.execute("""
+        CREATE TABLE IF NOT EXISTS readings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp TEXT,
+            temperature REAL,
+            humidity REAL
+        )
+    """)
+  conn.commit()
+  conn.close()
+
+
+init_db()
+
+
+# 2. The endpoint where hardware will send data
+@app.route("/sensor-data", methods=["POST"])
+def receive_data():
+  # Ensure JSON data is parsed safely
+  data = request.get_json(silent=True)
+  if not data:
+    return (
+        jsonify({
+            "error": "Invalid or missing JSON payload. Ensure Content-Type is application/json."
+        }),
+        400,
+    )
+
+  print(f"Data received: {data}")
+
+  temperature = data.get("temperature")
+  humidity = data.get("humidity")
+
+  conn = sqlite3.connect("sensors.db")
+  c = conn.cursor()
+  timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+  c.execute(
+      "INSERT INTO readings (timestamp, temperature, humidity) VALUES (?, ?,"
+      " ?)",
+      (timestamp, temperature, humidity),
+  )
+  conn.commit()
+  conn.close()
+
+  return jsonify({"status": "success"}), 200
+
+
+# 3. A visible dashboard route for your web browser
+@app.route("/", methods=["GET"])
+def dashboard():
+  conn = sqlite3.connect("sensors.db")
+  c = conn.cursor()
+  c.execute("SELECT id, timestamp, temperature, humidity FROM readings ORDER BY timestamp DESC LIMIT 5")
+  rows = c.fetchall()
+  conn.close()
+
+  html = "<h1>Live Sensor Dashboard</h1><ul>"
+  for row in rows:
+    # row = (id, timestamp, temperature, humidity)
+    html += f"<li>{row[1]} — Temp: {row[2]}°C, Humidity: {row[3]}%</li>"
+  html += "</ul>"
+  return html
+
+
+if __name__ == "__main__":
+  app.run(host="0.0.0.0", port=5000, debug=True)
+
+
+
+
+6.test.py to test data is showing or not :
+
+
+import urllib.request
+import json
+
+url = "http://127.0.0.1:5000/sensor-data"
+# The simulated sensor data
+data = json.dumps({"temperature": 25.5, "humidity": 60.0}).encode("utf-8")
+headers = {"Content-Type": "application/json"}
+
+try:
+    req = urllib.request.Request(url, data=data, headers=headers)
+    response = urllib.request.urlopen(req)
+    print("Server Response:", response.read().decode())
+except Exception as e:
+    print("Failed to send data:", e)
+
+
+
+
+7.The Central Server (app.py): Using Flask, we built a local web server that acts as the "brain" of your project, actively listening for incoming information.
+
+The Database (sensors.db): We integrated SQLite to automatically create a permanent, digital ledger. Instead of the data disappearing when you close the CMD, every reading is permanently saved to your hard drive with a timestamp.
+
+The Receiver (/sensor-data): This is a hidden backend "door" we programmed to accept incoming JSON data. We added error handling so it safely catches the temperature and humidity numbers and inserts them into the database.
+
+The Live Dashboard (/): We wrote a visible frontend route. When you open 127.0.0.1:5000 in your web browser, it asks the database for the 5 most recent readings and generates an HTML webpage to display them.
+
+The Simulator (test.py): Because we don't have the physical sensors wired up yet, we wrote a quick Python script to act as a "fake" hardware device. It packages up a dummy temperature (25.5°C) and shoots it over to your server exactly how the real hardware will.
