@@ -1,0 +1,14 @@
+1. create folder iot-sensor-pipeline
+	***This separates the microcontroller code, the database/Python server, and the web dashboard.
+		mkdir iot-sensor-pipeline
+		cd iot-sensor-pipeline
+		mkdir hardware backend frontend
+		echo # IoT Sensor Data Pipeline > README.md
+		echo > .gitignore
+		git init
+2.github repo make 
+		git add .
+		git commit -m "Initial project structure"
+		git branch -M main
+		git remote add origin https://github.com/ATWISHERE/iot-sensor-pipeline.git
+		git push -u origin main
